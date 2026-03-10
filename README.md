@@ -33,7 +33,7 @@ manage.py
 2. Install dependencies:
 
 ```bash
-pip install django djangorestframework
+pip install -r requirements.txt
 ```
 
 3. Apply migrations:
@@ -57,7 +57,7 @@ python manage.py runserver
 ## Run Tests
 
 ```bash
-python manage.py test
+pytest
 ```
 
 ## API Endpoints
@@ -79,3 +79,4 @@ Base path: `/api/`
 
 - The default database is SQLite for local development.
 - Update `SECRET_KEY`, `DEBUG`, and `ALLOWED_HOSTS` before deploying.
+- The custom user model is configured as `accounts.User`.
