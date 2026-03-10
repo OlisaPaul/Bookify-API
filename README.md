@@ -1,0 +1,81 @@
+# Bookify API
+
+A minimal Django REST Framework backend for managing events and bookings.
+
+## Features
+
+- Custom user model using `accounts.User`
+- Event model with list and retrieve endpoints
+- Booking model with authenticated create and list endpoints
+- Validation to prevent a user from booking the same event twice
+
+## Tech Stack
+
+- Python
+- Django
+- Django REST Framework
+- SQLite (default for local development)
+
+## Project Structure
+
+```text
+accounts/
+bookings/
+config/
+events/
+tests/
+manage.py
+```
+
+## Setup
+
+1. Create and activate a virtual environment.
+2. Install dependencies:
+
+```bash
+pip install django djangorestframework
+```
+
+3. Apply migrations:
+
+```bash
+python manage.py migrate
+```
+
+4. Create a superuser if needed:
+
+```bash
+python manage.py createsuperuser
+```
+
+5. Start the development server:
+
+```bash
+python manage.py runserver
+```
+
+## Run Tests
+
+```bash
+python manage.py test
+```
+
+## API Endpoints
+
+Base path: `/api/`
+
+- `GET /api/events/` - List events
+- `GET /api/events/<id>/` - Retrieve a single event
+- `POST /api/bookings/` - Create a booking for the authenticated user
+- `GET /api/bookings/` - List the authenticated user's bookings
+- `GET /api/bookings/<id>/` - Retrieve a single booking owned by the authenticated user
+
+## Booking Rules
+
+- A user cannot book the same event more than once.
+- Booking endpoints require authentication.
+
+## Notes
+
+- The default database is SQLite for local development.
+- Update `SECRET_KEY`, `DEBUG`, and `ALLOWED_HOSTS` before deploying.
