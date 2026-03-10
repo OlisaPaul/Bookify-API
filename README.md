@@ -54,6 +54,8 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
+If Redis is not running on the default local address, set `REDIS_URL` before starting the app. The default is `redis://127.0.0.1:6379/1`.
+
 ## Run Tests
 
 ```bash
@@ -64,6 +66,8 @@ pytest
 
 Base path: `/api/`
 
+- `POST /api/token/` - Obtain JWT access and refresh tokens
+- `POST /api/token/refresh/` - Refresh a JWT access token
 - `GET /api/events/` - List events
 - `GET /api/events/<id>/` - Retrieve a single event
 - `POST /api/bookings/` - Create a booking for the authenticated user
@@ -73,7 +77,23 @@ Base path: `/api/`
 ## Booking Rules
 
 - A user cannot book the same event more than once.
-- Booking endpoints require authentication.
+- Booking endpoints require JWT authentication.
+
+## Authentication
+
+Use the token endpoint to obtain JWT credentials:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/token/ \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"your-username\", \"password\": \"your-password\"}"
+```
+
+Then send the access token in the `Authorization` header:
+
+```text
+Authorization: Bearer <access_token>
+```
 
 ## Notes
 

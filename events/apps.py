@@ -7,3 +7,7 @@ class EventsConfig(AppConfig):
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "events"
+
+    def ready(self):
+        """Register signal handlers for cache invalidation."""
+        from events import signals  # noqa: F401
