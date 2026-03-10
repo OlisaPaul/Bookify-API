@@ -2,7 +2,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.serializers import ValidationError
@@ -10,6 +10,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from bookings.models import Booking
+from bookings.tasks import process_payment, send_booking_confirmation
 from bookings.views import BookingViewSet
 from events.models import Event
 
@@ -273,3 +274,67 @@ class BookingThrottleTests(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_201_CREATED)
             else:
                 self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+@override_settings(
+    CELERY_TASK_ALWAYS_EAGER=True,
+    CELERY_TASK_EAGER_PROPAGATES=True,
+)
+class BookingTaskWorkflowTests(TestCase):
+    """Tests for the Celery-driven booking workflow."""
+
+    def setUp(self):
+        """Create a booking that tasks can operate on deterministically."""
+        self.user = User.objects.create_user(
+            username="task-user",
+            password="password123",
+        )
+        self.event = Event.objects.create(
+            title="Async Event",
+            description="Used for Celery workflow tests.",
+            date="2026-12-01T10:00:00Z",
+            available_slots=10,
+        )
+        self.booking = Booking.objects.create(
+            user=self.user,
+            event=self.event,
+            status=Booking.STATUS_PENDING,
+        )
+
+    def test_successful_payment_flow_marks_booking_paid_then_confirmed(self):
+        """Successful payment processing marks a booking paid before confirmation."""
+        original_confirmation_run = send_booking_confirmation.run
+
+        def confirmation_side_effect(booking_id):
+            self.booking.refresh_from_db()
+            self.assertEqual(self.booking.status, Booking.STATUS_PAID)
+            return original_confirmation_run(booking_id)
+
+        self.assertEqual(self.booking.status, Booking.STATUS_PENDING)
+
+        with patch(
+            "bookings.tasks.send_booking_confirmation.delay",
+            side_effect=confirmation_side_effect,
+        ) as mock_confirmation_delay:
+            process_payment.run(self.booking.id)
+
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.STATUS_CONFIRMED)
+        mock_confirmation_delay.assert_called_once_with(self.booking.id)
+
+    @patch("bookings.tasks.payment_succeeds", return_value=False)
+    @patch("bookings.tasks.send_booking_confirmation.delay")
+    def test_payment_failure_flow_marks_booking_failed(
+        self,
+        mock_confirmation_delay,
+        mock_payment_succeeds,
+    ):
+        """Failed payment processing marks the booking as failed and stops confirmation."""
+        self.assertEqual(self.booking.status, Booking.STATUS_PENDING)
+
+        process_payment.run(self.booking.id)
+
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.STATUS_FAILED)
+        mock_payment_succeeds.assert_called_once_with()
+        mock_confirmation_delay.assert_not_called()

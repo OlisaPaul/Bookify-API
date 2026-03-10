@@ -9,6 +9,11 @@ from bookings.models import Booking
 logger = logging.getLogger(__name__)
 
 
+def payment_succeeds():
+    """Return whether the simulated payment succeeds."""
+    return True
+
+
 @shared_task
 def process_payment(booking_id):
     """Simulate payment processing and queue confirmation on success."""
@@ -18,7 +23,7 @@ def process_payment(booking_id):
         logger.warning("Payment processing skipped; booking %s does not exist.", booking_id)
         return
 
-    payment_succeeded = True
+    payment_succeeded = payment_succeeds()
 
     if payment_succeeded:
         booking.status = Booking.STATUS_PAID
