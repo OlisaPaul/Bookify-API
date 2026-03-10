@@ -7,11 +7,15 @@ class Booking(models.Model):
     """Booking created by a user for a specific event."""
 
     STATUS_PENDING = "pending"
+    STATUS_PAID = "paid"
     STATUS_CONFIRMED = "confirmed"
+    STATUS_FAILED = "failed"
 
     STATUS_CHOICES = (
         (STATUS_PENDING, "Pending"),
+        (STATUS_PAID, "Paid"),
         (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_FAILED, "Failed"),
     )
 
     user = models.ForeignKey(

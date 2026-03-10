@@ -106,4 +106,4 @@ Authorization: Bearer <access_token>
 - The default database is SQLite for local development.
 - Update `SECRET_KEY`, `DEBUG`, and `ALLOWED_HOSTS` before deploying.
 - The custom user model is configured as `accounts.User`.
-- Booking confirmations are queued asynchronously through Celery.
+- Booking payment processing and email confirmations are queued asynchronously through Celery.

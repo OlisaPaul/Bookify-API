@@ -10,6 +10,29 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
+def process_payment(booking_id):
+    """Simulate payment processing and queue confirmation on success."""
+    try:
+        booking = Booking.objects.get(pk=booking_id)
+    except Booking.DoesNotExist:
+        logger.warning("Payment processing skipped; booking %s does not exist.", booking_id)
+        return
+
+    payment_succeeded = True
+
+    if payment_succeeded:
+        booking.status = Booking.STATUS_PAID
+        booking.save(update_fields=["status"])
+        logger.info("Payment processed successfully for booking %s.", booking.id)
+        send_booking_confirmation.delay(booking.id)
+        return
+
+    booking.status = Booking.STATUS_FAILED
+    booking.save(update_fields=["status"])
+    logger.warning("Payment failed for booking %s.", booking.id)
+
+
+@shared_task
 def send_booking_confirmation(booking_id):
     """Simulate sending a booking confirmation and mark the booking confirmed."""
     try:

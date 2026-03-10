@@ -7,7 +7,7 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from bookings.models import Booking
 from bookings.serializers import BookingSerializer
-from bookings.tasks import send_booking_confirmation
+from bookings.tasks import process_payment
 from events.models import Event
 
 
@@ -60,15 +60,15 @@ class BookingViewSet(
                 ) from exc
 
             transaction.on_commit(
-                lambda: self._enqueue_booking_confirmation(booking.id)
+                lambda: self._enqueue_payment_processing(booking.id)
             )
 
-    def _enqueue_booking_confirmation(self, booking_id):
-        """Queue asynchronous booking confirmation after a successful commit."""
+    def _enqueue_payment_processing(self, booking_id):
+        """Queue asynchronous payment processing after a successful commit."""
         try:
-            send_booking_confirmation.delay(booking_id)
+            process_payment.delay(booking_id)
         except Exception:
             logger.exception(
-                "Failed to enqueue booking confirmation for booking %s.",
+                "Failed to enqueue payment processing for booking %s.",
                 booking_id,
             )
