@@ -1,4 +1,5 @@
 Django
+celery
 djangorestframework
 djangorestframework-simplejwt
 django-redis

@@ -1,11 +1,17 @@
 """Viewsets for booking APIs."""
+import logging
+
 from django.db import IntegrityError, transaction
 from rest_framework import mixins, permissions, serializers, viewsets
 from rest_framework.throttling import ScopedRateThrottle
 
 from bookings.models import Booking
 from bookings.serializers import BookingSerializer
+from bookings.tasks import send_booking_confirmation
 from events.models import Event
+
+
+logger = logging.getLogger(__name__)
 
 
 class BookingViewSet(
@@ -47,8 +53,22 @@ class BookingViewSet(
             event.save(update_fields=["available_slots"])
 
             try:
-                serializer.save(user=self.request.user, event=event)
+                booking = serializer.save(user=self.request.user, event=event)
             except IntegrityError as exc:
                 raise serializers.ValidationError(
                     {"event": "You have already booked this event."}
                 ) from exc
+
+            transaction.on_commit(
+                lambda: self._enqueue_booking_confirmation(booking.id)
+            )
+
+    def _enqueue_booking_confirmation(self, booking_id):
+        """Queue asynchronous booking confirmation after a successful commit."""
+        try:
+            send_booking_confirmation.delay(booking_id)
+        except Exception:
+            logger.exception(
+                "Failed to enqueue booking confirmation for booking %s.",
+                booking_id,
+            )

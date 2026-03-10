@@ -54,7 +54,13 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-If Redis is not running on the default local address, set `REDIS_URL` before starting the app. The default is `redis://127.0.0.1:6379/1`.
+6. Start Redis. The default URL used by both Django cache and Celery is `redis://127.0.0.1:6379/1`.
+
+7. Start the Celery worker:
+
+```bash
+celery -A config worker --loglevel=info
+```
 
 ## Run Tests
 
@@ -100,3 +106,4 @@ Authorization: Bearer <access_token>
 - The default database is SQLite for local development.
 - Update `SECRET_KEY`, `DEBUG`, and `ALLOWED_HOSTS` before deploying.
 - The custom user model is configured as `accounts.User`.
+- Booking confirmations are queued asynchronously through Celery.
