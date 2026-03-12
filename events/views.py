@@ -1,17 +1,24 @@
 """Viewsets for event APIs."""
 from django.core.cache import cache
-from rest_framework import response, viewsets
+from rest_framework import permissions, response, viewsets
 
+from core.permissions import IsStaffOrAdmin
 from events.cache import EVENT_LIST_CACHE_KEY, EVENT_LIST_CACHE_TIMEOUT
 from events.models import Event
 from events.serializers import EventSerializer
 
 
-class EventViewSet(viewsets.ReadOnlyModelViewSet):
-    """Read-only endpoints for listing and retrieving events."""
+class EventViewSet(viewsets.ModelViewSet):
+    """Endpoints for public event reads and admin event management."""
 
     queryset = Event.objects.all()
     serializer_class = EventSerializer
+
+    def get_permissions(self):
+        """Allow public reads while restricting writes to admin users."""
+        if self.action in ("list", "retrieve"):
+            return [permissions.AllowAny()]
+        return [IsStaffOrAdmin()]
 
     def list(self, request, *args, **kwargs):
         """Cache the event list response for a short period."""

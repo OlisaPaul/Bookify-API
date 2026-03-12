@@ -3,5 +3,7 @@ celery
 djangorestframework
 djangorestframework-simplejwt
 django-redis
+drf-spectacular
 pytest
 pytest-django
+psycopg[binary]

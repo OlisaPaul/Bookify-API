@@ -2,18 +2,44 @@
 import logging
 
 from django.db import IntegrityError, transaction
+from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import mixins, permissions, serializers, viewsets
 from rest_framework.throttling import ScopedRateThrottle
 
 from bookings.models import Booking
 from bookings.serializers import BookingSerializer
 from bookings.tasks import process_payment
+from core.permissions import IsCustomer, IsStaffOrAdmin
 from events.models import Event
 
 
 logger = logging.getLogger(__name__)
 
 
+@extend_schema_view(
+    create=extend_schema(
+        summary="Create a booking",
+        description=(
+            "Create a booking for the authenticated user. "
+            "JWT authentication is required. "
+            "Allowed booking status values are `pending`, `paid`, `confirmed`, and `failed`. "
+            "Clients should typically submit `pending` on creation; the asynchronous workflow updates the booking status afterward."
+        ),
+        responses={
+            201: BookingSerializer,
+            400: OpenApiResponse(description="Validation error, duplicate booking, or no available slots."),
+            401: OpenApiResponse(description="Authentication credentials were not provided or are invalid."),
+            429: OpenApiResponse(description="Too many booking attempts. Limit is 5 requests per minute."),
+        },
+        examples=[
+            OpenApiExample(
+                "Create booking request",
+                value={"event": 1, "status": "pending"},
+                request_only=True,
+            ),
+        ],
+    )
+)
 class BookingViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
@@ -23,12 +49,23 @@ class BookingViewSet(
     """Endpoints for creating and listing the authenticated user's bookings."""
 
     serializer_class = BookingSerializer
-    permission_classes = [permissions.IsAuthenticated]
     throttle_scope = "booking_create"
 
     def get_queryset(self):
         """Restrict booking visibility to the current user."""
-        return Booking.objects.filter(user=self.request.user).select_related("event", "user")
+        queryset = Booking.objects.select_related("event", "user")
+        if self.request.user.is_superuser or self.request.user.role in (
+            self.request.user.ROLE_STAFF,
+            self.request.user.ROLE_ADMIN,
+        ):
+            return queryset
+        return queryset.filter(user=self.request.user)
+
+    def get_permissions(self):
+        """Apply role-based permissions per booking action."""
+        if self.action == "create":
+            return [permissions.IsAuthenticated(), IsCustomer()]
+        return [permissions.IsAuthenticated()]
 
     def get_throttles(self):
         """Apply throttling only to booking creation requests."""

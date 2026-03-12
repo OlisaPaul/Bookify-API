@@ -5,4 +5,14 @@ from django.contrib.auth.admin import UserAdmin
 from accounts.models import User
 
 
-admin.site.register(User, UserAdmin)
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    """Admin configuration for custom users."""
+
+    fieldsets = UserAdmin.fieldsets + (
+        ("Role", {"fields": ("role",)}),
+    )
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ("Role", {"fields": ("role",)}),
+    )
+    list_display = ("username", "email", "role", "is_staff", "is_active")

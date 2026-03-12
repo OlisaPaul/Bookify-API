@@ -219,6 +219,79 @@ class EventCachingTests(APITestCase):
         self.assertEqual(second_response.data[0]["title"], "Updated Poetry Night")
 
 
+class EventManagementTests(APITestCase):
+    """Tests for admin-only event management endpoints."""
+
+    def setUp(self):
+        """Create admin and regular users for permission checks."""
+        self.admin_user = User.objects.create_user(
+            username="admin-user",
+            password="password123",
+            role=User.ROLE_ADMIN,
+        )
+        self.staff_user = User.objects.create_user(
+            username="staff-user",
+            password="password123",
+            role=User.ROLE_STAFF,
+        )
+        self.regular_user = User.objects.create_user(
+            username="regular-user",
+            password="password123",
+            role=User.ROLE_CUSTOMER,
+        )
+
+    def test_admin_can_create_event(self):
+        """Admin users can create events."""
+        self.client.force_authenticate(user=self.admin_user)
+
+        response = self.client.post(
+            reverse("event-list"),
+            {
+                "title": "Admin Event",
+                "description": "Created by an admin user.",
+                "date": "2027-01-01T10:00:00Z",
+                "available_slots": 25,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Event.objects.filter(title="Admin Event").exists())
+
+    def test_regular_user_cannot_create_event(self):
+        """Non-admin users receive HTTP 403 when creating events."""
+        self.client.force_authenticate(user=self.regular_user)
+
+        response = self.client.post(
+            reverse("event-list"),
+            {
+                "title": "Blocked Event",
+                "description": "Should not be created.",
+                "date": "2027-01-02T10:00:00Z",
+                "available_slots": 25,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Event.objects.filter(title="Blocked Event").exists())
+
+    def test_staff_user_can_create_event(self):
+        """Staff users can create events."""
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.post(
+            reverse("event-list"),
+            {
+                "title": "Staff Event",
+                "description": "Created by a staff user.",
+                "date": "2027-01-03T10:00:00Z",
+                "available_slots": 20,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Event.objects.filter(title="Staff Event").exists())
+
+
 @override_settings(
     CACHES={
         "default": {
@@ -236,6 +309,7 @@ class BookingThrottleTests(APITestCase):
         self.user = User.objects.create_user(
             username="throttle-user",
             password="password123",
+            role=User.ROLE_CUSTOMER,
         )
         self.client.force_authenticate(user=self.user)
 
@@ -288,6 +362,7 @@ class BookingTaskWorkflowTests(TestCase):
         self.user = User.objects.create_user(
             username="task-user",
             password="password123",
+            role=User.ROLE_CUSTOMER,
         )
         self.event = Event.objects.create(
             title="Async Event",
@@ -338,3 +413,95 @@ class BookingTaskWorkflowTests(TestCase):
         self.assertEqual(self.booking.status, Booking.STATUS_FAILED)
         mock_payment_succeeds.assert_called_once_with()
         mock_confirmation_delay.assert_not_called()
+
+
+class BookingRolePermissionTests(APITestCase):
+    """Tests for role-based booking visibility and creation."""
+
+    def setUp(self):
+        """Create users with different roles and a couple of bookings."""
+        self.customer = User.objects.create_user(
+            username="booking-customer",
+            password="password123",
+            role=User.ROLE_CUSTOMER,
+        )
+        self.other_customer = User.objects.create_user(
+            username="other-booking-customer",
+            password="password123",
+            role=User.ROLE_CUSTOMER,
+        )
+        self.staff_user = User.objects.create_user(
+            username="booking-staff",
+            password="password123",
+            role=User.ROLE_STAFF,
+        )
+        self.admin_user = User.objects.create_user(
+            username="booking-admin",
+            password="password123",
+            role=User.ROLE_ADMIN,
+        )
+        self.event = Event.objects.create(
+            title="Role Protected Event",
+            description="Used for role-based booking tests.",
+            date="2027-02-01T10:00:00Z",
+            available_slots=10,
+        )
+        self.other_event = Event.objects.create(
+            title="Second Role Protected Event",
+            description="Used for role-based booking tests.",
+            date="2027-02-02T10:00:00Z",
+            available_slots=10,
+        )
+        self.customer_booking = Booking.objects.create(
+            user=self.customer,
+            event=self.event,
+        )
+        self.other_customer_booking = Booking.objects.create(
+            user=self.other_customer,
+            event=self.other_event,
+        )
+
+    def test_customer_only_sees_own_bookings(self):
+        """Customers only see their own bookings."""
+        self.client.force_authenticate(user=self.customer)
+
+        response = self.client.get(reverse("booking-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], self.customer_booking.id)
+
+    def test_staff_can_see_all_bookings(self):
+        """Staff users can list every booking."""
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.get(reverse("booking-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_admin_can_see_all_bookings(self):
+        """Admin users can list every booking."""
+        self.client.force_authenticate(user=self.admin_user)
+
+        response = self.client.get(reverse("booking-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_staff_cannot_create_booking(self):
+        """Staff users cannot create customer bookings."""
+        new_event = Event.objects.create(
+            title="Staff Booking Attempt",
+            description="Should be rejected.",
+            date="2027-02-03T10:00:00Z",
+            available_slots=10,
+        )
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.post(
+            reverse("booking-list"),
+            {"event": new_event.id, "status": Booking.STATUS_PENDING},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

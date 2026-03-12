@@ -72,6 +72,9 @@ pytest
 
 Base path: `/api/`
 
+- `GET /api/schema/` - OpenAPI schema
+- `GET /api/docs/` - Swagger UI
+- `GET /api/redoc/` - ReDoc
 - `POST /api/token/` - Obtain JWT access and refresh tokens
 - `POST /api/token/refresh/` - Refresh a JWT access token
 - `GET /api/events/` - List events
@@ -107,3 +110,4 @@ Authorization: Bearer <access_token>
 - Update `SECRET_KEY`, `DEBUG`, and `ALLOWED_HOSTS` before deploying.
 - The custom user model is configured as `accounts.User`.
 - Booking payment processing and email confirmations are queued asynchronously through Celery.
+- Interactive API documentation is available at `/api/docs/` and `/api/redoc/`.
